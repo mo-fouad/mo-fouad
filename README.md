@@ -1,6 +1,6 @@
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="page/hero-dark.svg?v=3">
-  <img alt="Mo Fouad. Full-stack engineer shipping products end to end: typed APIs, web apps and mobile, from the first schema to the last deploy. 945 contributions in the last 22 weeks." src="page/hero-light.svg?v=3" width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="page/hero-dark.svg?v=4">
+  <img alt="Mo Fouad. Full-stack engineer shipping products end to end: typed APIs, web apps and mobile, from the first schema to the last deploy. 945 contributions in the last 22 weeks." src="page/hero-light.svg?v=4" width="100%">
 </picture>
 
 <a href="https://github.com/mo-fouad/type-prisma-gql">

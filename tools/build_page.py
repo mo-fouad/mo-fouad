@@ -19,13 +19,13 @@ GRID = {
     "dark": ["#1E242C", "#0E4429", "#006D32", "#26A641", "#39D353"],
 }
 THEMES = {
-    "light": dict(ink="#1A1A19", muted="#6B6A65", faint="#9A988F", line="#E3E0D8",
+    "light": dict(snake=["#B9532F", "#C96442", "#D97757", "#E08B6E", "#E8A288", "#EFB9A3"], ink="#1A1A19", muted="#6B6A65", faint="#9A988F", line="#E3E0D8",
                   card="#FFFFFF", cardline="#E1DED6", clay="#C2603F", key="#2F6DB5",
                   tagline="#D9D6CE", tagtext="#4A4945",
                   idea="#966A1C", model="#5E7345", api="#B5532F", app="#3F6B99", live="#1A1A19",
                   ok="#4E7D3A", tint=0.06, tagtint=0.09,
                   term="#1F1E1D", termline="#1F1E1D"),
-    "dark": dict(ink="#ECEAE4", muted="#A3A19A", faint="#7D7B74", line="#30363D",
+    "dark": dict(snake=["#F2946F", "#E8835F", "#D97757", "#C96E50", "#B4654B", "#9A5D48"], ink="#ECEAE4", muted="#A3A19A", faint="#7D7B74", line="#30363D",
                  card="#161B22", cardline="#30363D", clay="#E08A6B", key="#79A8E0",
                  tagline="#3D444D", tagtext="#C9C6BE",
                  idea="#DDAE62", model="#A6BC8B", api="#E39373", app="#93B8DE", live="#ECEAE4",
@@ -298,6 +298,123 @@ def snake_loop_grid(s, t, g, grid, levels, gx, gy, cell, gap, length=6, dt=0.13)
     s.raw("".join(parts))
     print(f"  snake loop: {n} steps, {len(events)} dots, {D:.1f}s", file=sys.stderr)
 
+SNAKE_MODE = "runner"   # "runner": dots stream right to left · "loop": dots pop up in place (snake-advanced)
+
+def snake_runner_route(cols=22, rows=7, start=(2, 3), length=6, ticks=140, seed=5):
+    """Dots enter at the right edge and move one cell left per tick; the snake moves one
+    cell per tick and heads for the nearest dot it can cut off. Every move keeps the start
+    cell within reach, so the snake is back home exactly at `ticks` (a closed walk).
+    Returns (path, dots) with dots as dicts: s (spawn tick), r (row), lvl, end (tick it
+    disappears), eaten (bool)."""
+    import random
+    rnd = random.Random(seed)
+    assert ticks % 2 == 0
+    dots, t = [], 2
+    while t < ticks - cols - 2:          # last dot is off the board before the loop ends
+        for r in rnd.sample(range(rows), rnd.choice((1, 1, 2))):   # sometimes two dots enter together
+            dots.append({"s": t, "r": r, "lvl": rnd.randint(2, 4), "end": t + cols, "eaten": False})
+        t += rnd.choice((1, 2, 2, 3))
+    # light green dots: a second stream the snake leaves alone (and steers around)
+    ghosts, t, used = [], 1, {(d["s"], d["r"]) for d in dots}
+    while t < ticks - cols - 2:
+        for r in rnd.sample(range(rows), rnd.choice((1, 2, 2, 3))):
+            if (t, r) not in used:
+                ghosts.append({"s": t, "r": r, "lvl": 1, "end": t + cols, "eaten": False})
+        t += rnd.choice((1, 1, 2))
+    cell = lambda d, tt: (cols - 1 - (tt - d["s"]), d["r"])
+    alive = lambda d, tt: d["s"] <= tt < d["end"]
+    man = lambda a, b: abs(a[0] - b[0]) + abs(a[1] - b[1])
+    path = [start]
+    for t in range(ticks):
+        cur, remaining = path[-1], ticks - (t + 1)
+        blocked = set(path[-(length - 1):])
+        nbrs = [(cur[0] + dx, cur[1] + dy) for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))]
+        nbrs = [n for n in nbrs if 0 <= n[0] < cols and 0 <= n[1] < rows and man(n, start) <= remaining]
+        cands = [n for n in nbrs if n not in blocked] or nbrs
+        def hits_ghost(n):
+            return any(alive(gd, t + 1) and (cell(gd, t + 1) == n or
+                       (alive(gd, t) and cell(gd, t) == n and cell(gd, t + 1) == cur)) for gd in ghosts)
+        cands = [n for n in cands if not hits_ghost(n)] or cands
+        # nearest dot we can reach before it leaves the board
+        best = None
+        for d in dots:
+            if d["eaten"] or d["end"] <= t + 1:
+                continue
+            for k in range(1, cols + 1):
+                tt = t + k
+                if not (d["s"] <= tt < d["end"]):
+                    continue
+                if cell(d, tt)[0] <= cols - 8 and man(cur, cell(d, tt)) <= k:   # meet dots out on the board
+                    if best is None or k < best[0]:
+                        best = (k, cell(d, tt))
+                    break
+        heading = (cur[0] - path[-2][0], cur[1] - path[-2][1]) if len(path) > 1 else (1, 0)
+        if best:
+            goal = best[1]
+            nxt = min(cands, key=lambda n: (man(n, goal), (n[0] - cur[0], n[1] - cur[1]) != heading))
+        else:  # nothing to chase: cruise, drifting back towards home
+            mid = (cols // 2 - 3, rows // 2)   # drift back towards the middle-left and wait for the next dot
+            nxt = min(cands, key=lambda n: (man(n, mid) > 2 and man(n, mid) >= man(cur, mid), (n[0] - cur[0], n[1] - cur[1]) != heading, rnd.random()))
+        path.append(nxt)
+        for d in dots:   # eat if the head lands on a dot, or they pass through each other
+            if d["eaten"] or not alive(d, t + 1):
+                continue
+            if cell(d, t + 1) == nxt or (alive(d, t) and cell(d, t) == nxt and cell(d, t + 1) == cur):
+                d["eaten"], d["end"] = True, t + 1
+    assert path[-1] == start, path[-1]
+    path.pop()
+    # when the snake was boxed in with no clean way around, leave that light dot out
+    n = len(path)
+    def touched(gd):
+        return any(alive(gd, tt) and (cell(gd, tt) == path[tt] or
+                   (alive(gd, tt + 1) and cell(gd, tt) == path[(tt + 1) % n] and cell(gd, tt + 1) == path[tt]))
+                   for tt in range(n))
+    ghosts = [gd for gd in ghosts if not touched(gd)]
+    return path, dots, ghosts
+
+def snake_runner_grid(s, t, g, grid, levels, gx, gy, cell, gap, length=6, dt=0.13):
+    pitch = cell + gap
+    xy = lambda c: (gx + c[0] * pitch, gy + c[1] * pitch)
+    cols = len(grid)
+    path, dots, ghosts = snake_runner_route(cols=cols, length=length)
+    n = len(path); D = n * dt
+    f = lambda st: f"{st / n:.4f}"
+    real = {(i, d["weekday"]): levels[d["level"]] for i, wk in enumerate(grid) for d in wk}
+    s.raw('<g class="snake-static">' + "".join(
+        f'<rect x="{xy(c)[0]:.1f}" y="{xy(c)[1]:.1f}" width="{cell}" height="{cell}" rx="2" fill="{g[v]}"/>'
+        for c, v in real.items()) + "</g>")
+    parts = ['<g class="snake-anim">']
+    for c in real:
+        x, y = xy(c)
+        parts.append(f'<rect x="{x:.1f}" y="{y:.1f}" width="{cell}" height="{cell}" rx="2" fill="{g[0]}"/>')
+    bw, bh = cols * pitch - gap, 7 * pitch - gap
+    parts.append(f'<clipPath id="board"><rect x="{gx}" y="{gy}" width="{bw:.1f}" height="{bh:.1f}"/></clipPath>'
+                 f'<g clip-path="url(#board)">')
+    for d in ghosts + dots:  # slides in past the right edge, then left until eaten or out past the left edge
+        s0 = d["s"] - 1                                   # one tick earlier, still outside the board
+        x0 = xy((cols, d["r"]))[0]
+        x1 = x0 - (d["end"] - s0) * pitch
+        y = xy((0, d["r"]))[1]
+        parts.append(f'<rect x="{x0:.1f}" y="{y:.1f}" width="{cell}" height="{cell}" rx="2" fill="{g[d["lvl"]]}" opacity="0">'
+                     f'<animate attributeName="x" dur="{D:.2f}s" repeatCount="indefinite" '
+                     f'values="{x0:.1f};{x0:.1f};{x1:.1f};{x1:.1f}" keyTimes="0;{f(s0)};{f(d["end"])};1"/>'
+                     f'<animate attributeName="opacity" dur="{D:.2f}s" repeatCount="indefinite" calcMode="discrete" '
+                     f'values="0;1;0" keyTimes="0;{f(s0)};{f(d["end"])}"/></rect>')
+    parts.append("</g>")
+    snake = t["snake"][:length]          # clay, dark head to light tail
+    kt = ";".join(f"{i / n:.4f}" for i in range(n)) + ";1"
+    for k in range(length - 1, -1, -1):
+        pts = []
+        for st in range(n + 1):
+            x, y = xy(path[(st - k) % n]); pts.append(f"{x + cell/2:.1f},{y + cell/2:.1f}")
+        parts.append(f'<rect x="{-cell/2}" y="{-cell/2}" width="{cell}" height="{cell}" rx="{3 if k == 0 else 2}" fill="{snake[k]}">'
+                     f'<animateMotion dur="{D:.2f}s" repeatCount="indefinite" calcMode="linear" '
+                     f'values="{";".join(pts)}" keyTimes="{kt}"/></rect>')
+    parts.append("</g>")
+    s.raw("".join(parts))
+    eaten = sum(d["eaten"] for d in dots)
+    print(f"  snake runner: {n} ticks, {len(dots)} dots, {eaten} eaten, {len(ghosts)} light dots left alone, {D:.1f}s", file=sys.stderr)
+
 # ------------------------------------------------------------------ hero
 def hero(t, g, contrib):
     H = 268
@@ -319,7 +436,7 @@ def hero(t, g, contrib):
     cell, gap = 10, 3.1
     gx, gy = cx + 20, cy + 48
     levels = {"NONE": 0, "FIRST_QUARTILE": 1, "SECOND_QUARTILE": 2, "THIRD_QUARTILE": 3, "FOURTH_QUARTILE": 4}
-    snake_loop_grid(s, t, g, contrib["grid"], levels, gx, gy, cell, gap)
+    (snake_runner_grid if SNAKE_MODE == "runner" else snake_loop_grid)(s, t, g, contrib["grid"], levels, gx, gy, cell, gap)
     by2 = gy + 7 * (cell + gap) + 30
     s.text(cx + 20, by2, f"{contrib['total']:,} contributions", "mono", 11.5, t["muted"])
     lx = cx + cw - 20
