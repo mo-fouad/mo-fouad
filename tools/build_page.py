@@ -418,16 +418,17 @@ def snake_runner_grid(s, t, g, grid, levels, gx, gy, cell, gap, length=6, dt=0.1
 # ------------------------------------------------------------------ hero
 def hero(t, g, contrib):
     H = 268
-    s = SVG(H, "Mo Fouad. Full-stack engineer shipping products end to end: typed APIs, web apps and mobile, "
-               f"from the first schema to the last deploy. "
+    tagline = "I turn ideas into living products."
+    para = ("Full-stack TypeScript engineer at Encare in Stockholm, building software that helps "
+            "save lives. Bridging the gap between beautiful design and powerful engineering.")
+    s = SVG(H, f"Mo Fouad. {tagline} {para} "
                f"{contrib['total']:,} contributions in the last {contrib['weeks']} weeks.")
-    s.runs(0, 26, [("~ ", t["clay"]), ("$ whoami", t["muted"])], "mono", 13)
-    s.text(-3, 104, "Mo Fouad", "display", 70, t["ink"])
-    para = ("Full-stack engineer shipping products end to end — typed APIs, web apps and mobile, "
-            "from the first schema to the last deploy.")
-    y = 148
-    for line in wrap("sans", 17.5, para, 420):
-        s.text(0, y, line, "sans", 17.5, t["muted"]); y += 28
+    s.runs(0, 26, [("~ ", t["clay"]), ("$ whoami", t["muted"])], "mono", 12)
+    s.text(-2, 92, "Mo Fouad", "display", 56, t["ink"])
+    s.text(0, 132, tagline, "serif", 20, t["ink"])
+    y = 166
+    for line in wrap("sans", 15, para, 440):
+        s.text(0, y, line, "sans", 15, t["muted"]); y += 24
     # contributions card
     cx, cy, cw, ch = 470, 14, 330, 214
     s.raw(f'<rect x="{cx+.5}" y="{cy+.5}" width="{cw-1}" height="{ch-1}" rx="12" fill="{t["card"]}" stroke="{t["cardline"]}"/>')
@@ -459,9 +460,9 @@ def shipping(t, repo):
     s.text(0, top + 44, repo["hash"], "mono", 12.5, t["faint"])
     s.raw(f'<circle cx="86" cy="{top+38}" r="4" fill="{t["clay"]}"/>')
     s.text(98, top + 44, repo["name"], "sansb", 19, t["ink"])
-    y = top + 72
-    for line in wrap("sans", 15, repo["desc"], 400):
-        s.text(80, y, line, "sans", 15, t["muted"]); y += 23
+    y = top + 78
+    for line in wrap("sans", 15, repo["desc"], 480):
+        s.text(80, y, line, "sans", 15, t["muted"]); y += 24
     xr = W - 34
     for tg in reversed(repo["tags"]):
         xr = tag(s, t, xr, top + 40, tg) - 8
@@ -639,9 +640,9 @@ if __name__ == "__main__":
              for x in wk["contributionDays"]] for wk in weeks]
     contrib = {"weeks": len(weeks), "grid": grid,
                "total": sum(x["contributionCount"] for wk in weeks for x in wk["contributionDays"])}
-    repo = {"name": "type-prisma-gql", "hash": "30222df",
-            "desc": "A lightweight TypeGraphQL for Prisma 7. Write your models once, get GraphQL types and resolvers, "
-                    "no reflect-metadata.",
+    repo = {"name": "type-prisma-gql", "hash": "42c193b",
+            "desc": "A simple way to add decorated types to your Prisma GraphQL API. "
+                    "Write your models once, get types and resolvers.",
             "tags": ["TypeScript", "GraphQL", "Prisma 7"]}
     EMAIL = "mo.fouad.saga@gmail.com"
 
